@@ -1,0 +1,316 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Pickleball API Documentation</title>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        body {
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            min-height: 100vh;
+            padding: 20px;
+        }
+
+        .container {
+            max-width: 1200px;
+            margin: 0 auto;
+            background: white;
+            border-radius: 15px;
+            box-shadow: 0 20px 60px rgba(0, 0, 0, 0.3);
+            overflow: hidden;
+        }
+
+        header {
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            color: white;
+            padding: 40px;
+            text-align: center;
+        }
+
+        header h1 {
+            font-size: 2.5em;
+            margin-bottom: 10px;
+        }
+
+        header p {
+            font-size: 1.2em;
+            opacity: 0.9;
+        }
+
+        .content {
+            padding: 40px;
+        }
+
+        .intro {
+            margin-bottom: 40px;
+            padding: 20px;
+            background: #f8f9fa;
+            border-left: 4px solid #667eea;
+            border-radius: 5px;
+        }
+
+        .intro h2 {
+            color: #667eea;
+            margin-bottom: 10px;
+        }
+
+        .endpoints {
+            display: grid;
+            gap: 30px;
+        }
+
+        .endpoint-section {
+            border: 2px solid #e9ecef;
+            border-radius: 10px;
+            overflow: hidden;
+            transition: transform 0.3s, box-shadow 0.3s;
+        }
+
+        .endpoint-section:hover {
+            transform: translateY(-5px);
+            box-shadow: 0 10px 25px rgba(0, 0, 0, 0.1);
+        }
+
+        .endpoint-header {
+            background: #667eea;
+            color: white;
+            padding: 20px;
+            font-size: 1.3em;
+            font-weight: bold;
+        }
+
+        .endpoint-body {
+            padding: 20px;
+        }
+
+        .endpoint-item {
+            margin-bottom: 20px;
+            padding: 15px;
+            background: #f8f9fa;
+            border-radius: 5px;
+        }
+
+        .endpoint-item:last-child {
+            margin-bottom: 0;
+        }
+
+        .method {
+            display: inline-block;
+            padding: 5px 10px;
+            background: #28a745;
+            color: white;
+            border-radius: 3px;
+            font-size: 0.9em;
+            font-weight: bold;
+            margin-right: 10px;
+        }
+
+        .path {
+            font-family: 'Courier New', monospace;
+            color: #495057;
+            font-size: 1.1em;
+            margin: 10px 0;
+        }
+
+        .path a {
+            color: #667eea;
+            text-decoration: none;
+            font-weight: bold;
+        }
+
+        .path a:hover {
+            text-decoration: underline;
+        }
+
+        .description {
+            color: #6c757d;
+            margin-top: 10px;
+            line-height: 1.6;
+        }
+
+        .example {
+            margin-top: 10px;
+            padding: 10px;
+            background: #e9ecef;
+            border-radius: 3px;
+            font-size: 0.9em;
+        }
+
+        .example-label {
+            font-weight: bold;
+            color: #495057;
+            margin-bottom: 5px;
+        }
+
+        footer {
+            background: #343a40;
+            color: white;
+            text-align: center;
+            padding: 20px;
+            margin-top: 40px;
+        }
+
+        .base-url {
+            background: #fff3cd;
+            padding: 15px;
+            border-radius: 5px;
+            margin-bottom: 30px;
+            border-left: 4px solid #ffc107;
+        }
+
+        .base-url strong {
+            color: #856404;
+        }
+
+        code {
+            background: #f8f9fa;
+            padding: 2px 6px;
+            border-radius: 3px;
+            font-family: 'Courier New', monospace;
+            color: #e83e8c;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <header>
+            <h1>🏓 Pickleball API</h1>
+            <p>Your gateway to pickleball products, courts, and groups</p>
+        </header>
+
+        <div class="content">
+            <div class="intro">
+                <h2>Welcome to the Pickleball API!</h2>
+                <p>This API provides access to pickleball products, court information, and community groups. All endpoints return JSON data and support CORS for easy integration with your applications.</p>
+            </div>
+
+            <div class="base-url">
+                <strong>Base URL:</strong> <code>http://localhost:3001</code> (Local) or <code>https://your-render-url.onrender.com</code> (Production)
+            </div>
+
+            <div class="endpoints">
+                <!-- Products -->
+                <div class="endpoint-section">
+                    <div class="endpoint-header">
+                        🏪 Products
+                    </div>
+                    <div class="endpoint-body">
+                        <div class="endpoint-item">
+                            <div>
+                                <span class="method">GET</span>
+                                <span class="path"><a href="/api/products" target="_blank">/api/products</a></span>
+                            </div>
+                            <div class="description">
+                                Retrieve all pickleball products including paddles, balls, shoes, and accessories.
+                            </div>
+                            <div class="example">
+                                <div class="example-label">Returns:</div>
+                                Array of 8 products with id, name, image, price, description, skillLevel, and detailedDescription
+                            </div>
+                        </div>
+
+                        <div class="endpoint-item">
+                            <div>
+                                <span class="method">GET</span>
+                                <span class="path"><a href="/api/products/1" target="_blank">/api/products/:id</a></span>
+                            </div>
+                            <div class="description">
+                                Retrieve a specific product by its ID (1-8).
+                            </div>
+                            <div class="example">
+                                <div class="example-label">Example:</div>
+                                <code>/api/products/1</code> returns the Pro Paddle Set
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Courts -->
+                <div class="endpoint-section">
+                    <div class="endpoint-header">
+                        🏛️ Courts
+                    </div>
+                    <div class="endpoint-body">
+                        <div class="endpoint-item">
+                            <div>
+                                <span class="method">GET</span>
+                                <span class="path"><a href="/api/courts" target="_blank">/api/courts</a></span>
+                            </div>
+                            <div class="description">
+                                Retrieve all pickleball courts with location, hours, and amenities.
+                            </div>
+                            <div class="example">
+                                <div class="example-label">Returns:</div>
+                                Array of 3 courts with id, name, address, hours, courts, amenities, phone, parking, and fees
+                            </div>
+                        </div>
+
+                        <div class="endpoint-item">
+                            <div>
+                                <span class="method">GET</span>
+                                <span class="path"><a href="/api/courts/1" target="_blank">/api/courts/:id</a></span>
+                            </div>
+                            <div class="description">
+                                Retrieve a specific court by its ID (1-3).
+                            </div>
+                            <div class="example">
+                                <div class="example-label">Example:</div>
+                                <code>/api/courts/1</code> returns Community Recreation Center details
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Groups -->
+                <div class="endpoint-section">
+                    <div class="endpoint-header">
+                        👥 Groups
+                    </div>
+                    <div class="endpoint-body">
+                        <div class="endpoint-item">
+                            <div>
+                                <span class="method">GET</span>
+                                <span class="path"><a href="/api/groups" target="_blank">/api/groups</a></span>
+                            </div>
+                            <div class="description">
+                                Retrieve all pickleball community groups and meetups.
+                            </div>
+                            <div class="example">
+                                <div class="example-label">Returns:</div>
+                                Array of 4 groups with id, name, location, time, day, skillLevel, description, organizer, contactEmail, and averageAttendance
+                            </div>
+                        </div>
+
+                        <div class="endpoint-item">
+                            <div>
+                                <span class="method">GET</span>
+                                <span class="path"><a href="/api/groups/1" target="_blank">/api/groups/:id</a></span>
+                            </div>
+                            <div class="description">
+                                Retrieve a specific group by its ID (1-4).
+                            </div>
+                            <div class="example">
+                                <div class="example-label">Example:</div>
+                                <code>/api/groups/1</code> returns Tuesday Night Pickleball details
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <footer>
+            <p>&copy; 2025 Pickleball API | Built with Express.js</p>
+            <p style="margin-top: 10px; opacity: 0.8;">Click on any endpoint above to try it out!</p>
+        </footer>
+    </div>
+</body>
+</html>
+
