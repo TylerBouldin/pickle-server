@@ -8,6 +8,7 @@ const port = process.env.PORT || 3001;
 // Middleware
 app.use(cors());
 app.use(express.json());
+app.use(express.static(__dirname)); // Serve static files (style.css, index.html)
 app.use('/images', express.static(path.join(__dirname, 'images')));
 
 // Data
