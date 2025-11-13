@@ -6,17 +6,15 @@ const Joi = require('joi');
 const app = express();
 const port = process.env.PORT || 3001;
 
-// Middleware
 app.use(cors({
   origin: '*',
   methods: ['GET', 'POST', 'PUT', 'DELETE', 'OPTIONS'],
   allowedHeaders: ['Content-Type', 'Authorization']
 }));
 app.use(express.json());
-app.use(express.static(__dirname)); // Serve static files (style.css, index.html)
+app.use(express.static(__dirname));
 app.use('/images', express.static(path.join(__dirname, 'images')));
 
-// Data
 const products = [
   {
     id: 1,
@@ -179,7 +177,6 @@ const groups = [
   }
 ];
 
-// Routes
 app.get('/', (req, res) => {
   res.sendFile(path.join(__dirname, 'index.html'));
 });
@@ -223,7 +220,6 @@ app.get('/api/groups/:id', (req, res) => {
   }
 });
 
-// Joi validation schema for court
 const courtSchema = Joi.object({
   name: Joi.string().required().messages({
     'string.empty': 'Court name is required'
@@ -252,7 +248,6 @@ const courtSchema = Joi.object({
   })
 });
 
-// POST endpoint for adding a new court
 app.post('/api/courts', (req, res) => {
   try {
     const { error, value } = courtSchema.validate(req.body, { abortEarly: false });
@@ -266,16 +261,13 @@ app.post('/api/courts', (req, res) => {
       });
     }
 
-    // Generate new ID
     const newId = courts.length > 0 ? Math.max(...courts.map(c => c.id)) + 1 : 1;
     
-    // Create new court object
     const newCourt = {
       id: newId,
       ...value
     };
 
-    // Add to courts array
     courts.push(newCourt);
 
     res.status(201).json({ 
@@ -293,7 +285,6 @@ app.post('/api/courts', (req, res) => {
   }
 });
 
-// Start server
 app.listen(port, () => {
   console.log(`Pickleball API Server running on port ${port}`);
   });
