@@ -1,6 +1,7 @@
 const express = require('express');
 const cors = require('cors');
 const path = require('path');
+const Joi = require('joi');
 
 const app = express();
 const port = process.env.PORT || 3001;
@@ -218,7 +219,77 @@ app.get('/api/groups/:id', (req, res) => {
   }
 });
 
+// Joi validation schema for court
+const courtSchema = Joi.object({
+  name: Joi.string().required().messages({
+    'string.empty': 'Court name is required'
+  }),
+  address: Joi.string().required().messages({
+    'string.empty': 'Address is required'
+  }),
+  hours: Joi.string().required().messages({
+    'string.empty': 'Hours are required'
+  }),
+  courts: Joi.string().required().messages({
+    'string.empty': 'Court information is required'
+  }),
+  amenities: Joi.string().required().messages({
+    'string.empty': 'Amenities are required'
+  }),
+  phone: Joi.string().pattern(/^[\d\s\-\(\)]+$/).required().messages({
+    'string.empty': 'Phone number is required',
+    'string.pattern.base': 'Phone number must contain only digits, spaces, dashes, and parentheses'
+  }),
+  parking: Joi.string().required().messages({
+    'string.empty': 'Parking information is required'
+  }),
+  fees: Joi.string().required().messages({
+    'string.empty': 'Fee information is required'
+  })
+});
+
+// POST endpoint for adding a new court
+app.post('/api/courts', (req, res) => {
+  try {
+    const { error, value } = courtSchema.validate(req.body, { abortEarly: false });
+    
+    if (error) {
+      const errors = error.details.map(detail => detail.message);
+      return res.status(400).json({ 
+        success: false, 
+        error: 'Validation failed', 
+        details: errors 
+      });
+    }
+
+    // Generate new ID
+    const newId = courts.length > 0 ? Math.max(...courts.map(c => c.id)) + 1 : 1;
+    
+    // Create new court object
+    const newCourt = {
+      id: newId,
+      ...value
+    };
+
+    // Add to courts array
+    courts.push(newCourt);
+
+    res.status(201).json({ 
+      success: true, 
+      message: 'Court added successfully', 
+      court: newCourt 
+    });
+  } catch (err) {
+    console.error('Error adding court:', err);
+    res.status(500).json({ 
+      success: false, 
+      error: 'Server error', 
+      message: err.message 
+    });
+  }
+});
+
 // Start server
 app.listen(port, () => {
   console.log(`Pickleball API Server running on port ${port}`);
-});
+  });
