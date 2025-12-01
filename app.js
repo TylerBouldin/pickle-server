@@ -285,6 +285,52 @@ app.post('/api/courts', (req, res) => {
   }
 });
 
+app.put('/api/courts/:id', (req, res) => {
+  const { error, value } = courtSchema.validate(req.body, { abortEarly: false });
+  
+  if (error) {
+    const errors = error.details.map(detail => detail.message);
+    return res.status(400).json({ 
+      success: false, 
+      error: 'Validation failed',
+      details: errors
+    });
+  }
+
+  const court = courts.find(c => c.id === parseInt(req.params.id));
+  
+  if (!court) {
+    return res.status(404).json({ 
+      success: false, 
+      error: 'Court not found' 
+    });
+  }
+
+  Object.assign(court, value);
+  
+  res.status(200).json({ 
+    success: true, 
+    court: court 
+  });
+});
+
+app.delete('/api/courts/:id', (req, res) => {
+  const courtIndex = courts.findIndex(c => c.id === parseInt(req.params.id));
+  
+  if (courtIndex === -1) {
+    return res.status(404).json({ 
+      success: false, 
+      error: 'Court not found' 
+    });
+  }
+
+  courts.splice(courtIndex, 1);
+  
+  res.status(200).json({ 
+    success: true 
+  });
+});
+
 app.listen(port, () => {
   console.log(`Pickleball API Server running on port ${port}`);
   });
