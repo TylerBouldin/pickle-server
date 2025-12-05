@@ -1,10 +1,35 @@
+require('dotenv').config();
 const express = require('express');
 const cors = require('cors');
 const path = require('path');
 const Joi = require('joi');
+const mongoose = require('mongoose');
+const multer = require('multer');
 
 const app = express();
 const port = process.env.PORT || 3001;
+
+const mongoUri = process.env.MONGODB_URI;
+if (!mongoUri) {
+  console.warn('WARNING: MONGODB_URI not found in environment variables. Using default local connection.');
+}
+
+mongoose.connect(mongoUri || 'mongodb://localhost:27017/pickleball', {
+  serverSelectionTimeoutMS: 5000,
+  socketTimeoutMS: 45000,
+})
+  .then(() => {
+    console.log('✓ Connected to MongoDB successfully');
+    console.log('Database:', mongoose.connection.name);
+  })
+  .catch(err => {
+    console.error('✗ MongoDB connection error:', err.message);
+    if (err.message.includes('authentication failed')) {
+      console.error('   Check your MongoDB username and password in the .env file');
+    } else if (err.message.includes('ENOTFOUND')) {
+      console.error('   Check your MongoDB connection string and network connection');
+    }
+  });
 
 app.use(cors({
   origin: '*',
@@ -14,6 +39,20 @@ app.use(cors({
 app.use(express.json());
 app.use(express.static(__dirname));
 app.use('/images', express.static(path.join(__dirname, 'images')));
+
+const upload = multer({
+  storage: multer.memoryStorage(),
+  limits: { fileSize: 2 * 1024 * 1024 },
+  fileFilter: (req, file, cb) => {
+    if (file.mimetype.startsWith('image/')) {
+      cb(null, true);
+    } else {
+      cb(new Error('Only image files are allowed'), false);
+    }
+  }
+});
+
+const uploadMiddleware = upload.single('picture');
 
 const products = [
   {
@@ -90,41 +129,19 @@ const products = [
   }
 ];
 
-const courts = [
-  {
-    id: 1,
-    name: "Community Recreation Center",
-    address: "123 Main Street",
-    hours: "Open: 6 AM - 10 PM Daily",
-    courts: "4 outdoor courts, 2 indoor courts",
-    amenities: "Equipment rental available",
-    phone: "(555) 123-4567",
-    parking: "Free parking available",
-    fees: "$5 per person per day"
-  },
-  {
-    id: 2,
-    name: "Riverside Park",
-    address: "456 Oak Avenue",
-    hours: "Open: Dawn to Dusk",
-    courts: "6 outdoor courts",
-    amenities: "Free to play, bring your own equipment",
-    phone: "(555) 234-5678",
-    parking: "Street parking",
-    fees: "Free"
-  },
-  {
-    id: 3,
-    name: "Sports Complex",
-    address: "789 Pine Street",
-    hours: "Open: 7 AM - 9 PM",
-    courts: "8 outdoor courts, 4 indoor courts",
-    amenities: "Lessons and tournaments available",
-    phone: "(555) 345-6789",
-    parking: "Large parking lot",
-    fees: "$10 per person per day, memberships available"
-  }
-];
+const courtSchema = new mongoose.Schema({
+  name: String,
+  address: String,
+  hours: String,
+  courts: String,
+  amenities: String,
+  phone: String,
+  parking: String,
+  fees: String,
+  picture: String
+});
+
+const Court = mongoose.model('Court', courtSchema);
 
 const groups = [
   {
@@ -194,16 +211,58 @@ app.get('/api/products/:id', (req, res) => {
   }
 });
 
-app.get('/api/courts', (req, res) => {
-  res.json(courts);
+app.get('/api/courts', async (req, res) => {
+  try {
+    const courts = await Court.find();
+    console.log(`GET /api/courts - Found ${courts.length} courts in database`);
+    if (courts.length > 0) {
+      console.log('First court from DB:', {
+        _id: courts[0]._id,
+        name: courts[0].name,
+        address: courts[0].address,
+        hasData: !!(courts[0].name && courts[0].address)
+      });
+    }
+    const formattedCourts = courts.map(court => ({
+      id: court._id.toString(),
+      name: court.name || '',
+      address: court.address || '',
+      hours: court.hours || '',
+      courts: court.courts || '',
+      amenities: court.amenities || '',
+      phone: court.phone || '',
+      parking: court.parking || '',
+      fees: court.fees || '',
+      picture: court.picture || ''
+    }));
+    res.json(formattedCourts);
+  } catch (err) {
+    console.error('GET /api/courts error:', err);
+    res.status(500).json({ error: 'Server error' });
+  }
 });
 
-app.get('/api/courts/:id', (req, res) => {
-  const court = courts.find(c => c.id === parseInt(req.params.id));
-  if (court) {
-    res.json(court);
-  } else {
-    res.status(404).json({ error: 'Court not found' });
+app.get('/api/courts/:id', async (req, res) => {
+  try {
+    const court = await Court.findById(req.params.id);
+    if (court) {
+      res.json({
+        id: court._id.toString(),
+        name: court.name,
+        address: court.address,
+        hours: court.hours,
+        courts: court.courts,
+        amenities: court.amenities,
+        phone: court.phone,
+        parking: court.parking,
+        fees: court.fees,
+        picture: court.picture
+      });
+    } else {
+      res.status(404).json({ error: 'Court not found' });
+    }
+  } catch (err) {
+    res.status(500).json({ error: 'Server error' });
   }
 });
 
@@ -220,37 +279,99 @@ app.get('/api/groups/:id', (req, res) => {
   }
 });
 
-const courtSchema = Joi.object({
-  name: Joi.string().required().messages({
-    'string.empty': 'Court name is required'
+const courtValidationSchema = Joi.object({
+  name: Joi.string().trim().required().messages({
+    'string.empty': 'Court name is required',
+    'any.required': 'Court name is required'
   }),
-  address: Joi.string().required().messages({
-    'string.empty': 'Address is required'
+  address: Joi.string().trim().required().messages({
+    'string.empty': 'Address is required',
+    'any.required': 'Address is required'
   }),
-  hours: Joi.string().required().messages({
-    'string.empty': 'Hours are required'
+  hours: Joi.string().trim().required().messages({
+    'string.empty': 'Hours are required',
+    'any.required': 'Hours are required'
   }),
-  courts: Joi.string().required().messages({
-    'string.empty': 'Court information is required'
+  courts: Joi.string().trim().required().messages({
+    'string.empty': 'Court information is required',
+    'any.required': 'Court information is required'
   }),
-  amenities: Joi.string().required().messages({
-    'string.empty': 'Amenities are required'
+  amenities: Joi.string().trim().required().messages({
+    'string.empty': 'Amenities are required',
+    'any.required': 'Amenities are required'
   }),
-  phone: Joi.string().pattern(/^[\d\s\-\(\)]+$/).required().messages({
+  phone: Joi.string().trim().pattern(/^[\d\s\-\(\)]+$/).required().messages({
     'string.empty': 'Phone number is required',
-    'string.pattern.base': 'Phone number must contain only digits, spaces, dashes, and parentheses'
+    'string.pattern.base': 'Phone number must contain only digits, spaces, dashes, and parentheses',
+    'any.required': 'Phone number is required'
   }),
-  parking: Joi.string().required().messages({
-    'string.empty': 'Parking information is required'
+  parking: Joi.string().trim().required().messages({
+    'string.empty': 'Parking information is required',
+    'any.required': 'Parking information is required'
   }),
-  fees: Joi.string().required().messages({
-    'string.empty': 'Fee information is required'
-  })
+  fees: Joi.string().trim().required().messages({
+    'string.empty': 'Fee information is required',
+    'any.required': 'Fee information is required'
+  }),
+  picture: Joi.string().allow('').optional()
 });
 
-app.post('/api/courts', (req, res) => {
+app.post('/api/courts', upload.single('picture'), async (req, res) => {
   try {
-    const { error, value } = courtSchema.validate(req.body, { abortEarly: false });
+    console.log('POST /api/courts - Received request');
+    console.log('Content-Type:', req.headers['content-type']);
+    console.log('Request body type:', typeof req.body);
+    console.log('Request body keys:', Object.keys(req.body || {}));
+    console.log('Request body:', req.body);
+    console.log('Request file:', req.file ? `File received: ${req.file.originalname}` : 'No file');
+    
+    if (!req.body || Object.keys(req.body).length === 0) {
+      console.error('ERROR: req.body is empty! Multer may not be parsing FormData correctly.');
+      return res.status(400).json({
+        success: false,
+        error: 'Form data not received. Please check server configuration.',
+        details: ['No form fields were received by the server']
+      });
+    }
+    
+    const getField = (fieldName) => {
+      const value = req.body[fieldName];
+      if (value === undefined || value === null) {
+        console.warn(`⚠️ Field ${fieldName} is undefined or null in req.body`);
+        return '';
+      }
+      const stringValue = String(value).trim();
+      console.log(`✓ Field ${fieldName}: "${stringValue}"`);
+      return stringValue;
+    };
+    
+    const courtData = {
+      name: getField('name'),
+      address: getField('address'),
+      hours: getField('hours'),
+      courts: getField('courts'),
+      amenities: getField('amenities'),
+      phone: getField('phone'),
+      parking: getField('parking'),
+      fees: getField('fees'),
+      picture: ''
+    };
+    
+    console.log('\n=== Extracted court data before validation ===');
+    Object.keys(courtData).forEach(key => {
+      console.log(`  ${key}:`, courtData[key] || '(empty)');
+    });
+    console.log('===============================================\n');
+    
+    if (req.file) {
+      const base64Image = req.file.buffer.toString('base64');
+      const imageDataUrl = `data:${req.file.mimetype};base64,${base64Image}`;
+      courtData.picture = imageDataUrl;
+    } else if (req.body.picture && req.body.picture.trim() !== '') {
+      courtData.picture = req.body.picture;
+    }
+
+    const { error, value } = courtValidationSchema.validate(courtData, { abortEarly: false });
     
     if (error) {
       const errors = error.details.map(detail => detail.message);
@@ -261,22 +382,58 @@ app.post('/api/courts', (req, res) => {
       });
     }
 
-    const newId = courts.length > 0 ? Math.max(...courts.map(c => c.id)) + 1 : 1;
+    console.log('\n=== Validated court data (from Joi) ===');
+    console.log(JSON.stringify(value, null, 2));
+    console.log('=========================================\n');
     
-    const newCourt = {
-      id: newId,
-      ...value
-    };
+    if (!value.name || !value.address) {
+      console.error('ERROR: Validated data is missing required fields!');
+      console.error('Validated value:', value);
+      return res.status(500).json({
+        success: false,
+        error: 'Data validation passed but required fields are missing',
+        details: ['Name or address is missing after validation']
+      });
+    }
+    
+    const newCourt = new Court(value);
+    console.log('Court model before save:', newCourt.toObject());
+    
+    const savedCourt = await newCourt.save();
+    
+    console.log('\n=== Saved court from database ===');
+    console.log('  _id:', savedCourt._id);
+    console.log('  name:', savedCourt.name || '(MISSING)');
+    console.log('  address:', savedCourt.address || '(MISSING)');
+    console.log('  hours:', savedCourt.hours || '(MISSING)');
+    console.log('  courts:', savedCourt.courts || '(MISSING)');
+    console.log('  amenities:', savedCourt.amenities || '(MISSING)');
+    console.log('  phone:', savedCourt.phone || '(MISSING)');
+    console.log('  parking:', savedCourt.parking || '(MISSING)');
+    console.log('  fees:', savedCourt.fees || '(MISSING)');
+    console.log('  picture:', savedCourt.picture ? 'Has picture' : 'No picture');
+    console.log('==================================\n');
 
-    courts.push(newCourt);
+    const responseCourt = {
+      id: savedCourt._id.toString(),
+      name: value.name,
+      address: value.address,
+      hours: value.hours,
+      courts: value.courts,
+      amenities: value.amenities,
+      phone: value.phone,
+      parking: value.parking,
+      fees: value.fees,
+      picture: value.picture || ''
+    };
 
     res.status(201).json({ 
       success: true, 
       message: 'Court added successfully', 
-      court: newCourt 
+      court: responseCourt
     });
   } catch (err) {
-    console.error('Error adding court:', err);
+    console.error('POST /api/courts error:', err);
     res.status(500).json({ 
       success: false, 
       error: 'Server error', 
@@ -285,50 +442,104 @@ app.post('/api/courts', (req, res) => {
   }
 });
 
-app.put('/api/courts/:id', (req, res) => {
-  const { error, value } = courtSchema.validate(req.body, { abortEarly: false });
-  
-  if (error) {
-    const errors = error.details.map(detail => detail.message);
-    return res.status(400).json({ 
+app.put('/api/courts/:id', upload.single('picture'), async (req, res) => {
+  try {
+    const existingCourt = await Court.findById(req.params.id);
+    
+    if (!existingCourt) {
+      return res.status(404).json({ 
+        success: false, 
+        error: 'Court not found' 
+      });
+    }
+
+    const courtData = {
+      name: (req.body.name || '').trim(),
+      address: (req.body.address || '').trim(),
+      hours: (req.body.hours || '').trim(),
+      courts: (req.body.courts || '').trim(),
+      amenities: (req.body.amenities || '').trim(),
+      phone: (req.body.phone || '').trim(),
+      parking: (req.body.parking || '').trim(),
+      fees: (req.body.fees || '').trim(),
+      picture: existingCourt.picture || ''
+    };
+    
+    if (req.file) {
+      const base64Image = req.file.buffer.toString('base64');
+      const imageDataUrl = `data:${req.file.mimetype};base64,${base64Image}`;
+      courtData.picture = imageDataUrl;
+    } else if (req.body.picture && req.body.picture.trim() !== '' && req.body.picture.startsWith('data:image')) {
+      courtData.picture = req.body.picture;
+    }
+
+    const { error, value } = courtValidationSchema.validate(courtData, { abortEarly: false });
+    
+    if (error) {
+      const errors = error.details.map(detail => detail.message);
+      return res.status(400).json({ 
+        success: false, 
+        error: 'Validation failed',
+        details: errors
+      });
+    }
+
+    const updatedCourt = await Court.findByIdAndUpdate(req.params.id, value, { new: true });
+    
+    if (!updatedCourt) {
+      return res.status(404).json({ 
+        success: false, 
+        error: 'Court not found' 
+      });
+    }
+    
+    res.status(200).json({ 
+      success: true,
+      message: 'Court updated successfully',
+      court: {
+        id: updatedCourt._id.toString(),
+        name: updatedCourt.name,
+        address: updatedCourt.address,
+        hours: updatedCourt.hours,
+        courts: updatedCourt.courts,
+        amenities: updatedCourt.amenities,
+        phone: updatedCourt.phone,
+        parking: updatedCourt.parking,
+        fees: updatedCourt.fees,
+        picture: updatedCourt.picture || ''
+      }
+    });
+  } catch (err) {
+    console.error('PUT /api/courts/:id error:', err);
+    res.status(500).json({ 
       success: false, 
-      error: 'Validation failed',
-      details: errors
+      error: 'Server error', 
+      message: err.message 
     });
   }
-
-  const court = courts.find(c => c.id === parseInt(req.params.id));
-  
-  if (!court) {
-    return res.status(404).json({ 
-      success: false, 
-      error: 'Court not found' 
-    });
-  }
-
-  Object.assign(court, value);
-  
-  res.status(200).json({ 
-    success: true, 
-    court: court 
-  });
 });
 
-app.delete('/api/courts/:id', (req, res) => {
-  const courtIndex = courts.findIndex(c => c.id === parseInt(req.params.id));
-  
-  if (courtIndex === -1) {
-    return res.status(404).json({ 
+app.delete('/api/courts/:id', async (req, res) => {
+  try {
+    const court = await Court.findByIdAndDelete(req.params.id);
+    
+    if (!court) {
+      return res.status(404).json({ 
+        success: false, 
+        error: 'Court not found' 
+      });
+    }
+    
+    res.status(200).json({ 
+      success: true 
+    });
+  } catch (err) {
+    res.status(500).json({ 
       success: false, 
-      error: 'Court not found' 
+      error: 'Server error', 
+      message: err.message 
     });
   }
-
-  courts.splice(courtIndex, 1);
-  
-  res.status(200).json({ 
-    success: true 
-  });
 });
 
 app.listen(port, () => {

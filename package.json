@@ -20,7 +20,10 @@
   "homepage": "https://github.com/TylerBouldin/pickle-server#readme",
   "dependencies": {
     "cors": "^2.8.5",
+    "dotenv": "^17.2.3",
     "express": "^5.1.0",
-    "joi": "^17.13.3"
+    "joi": "^17.13.3",
+    "mongoose": "^9.0.0",
+    "multer": "^2.0.2"
   }
 }
