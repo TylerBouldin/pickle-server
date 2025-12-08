@@ -198,6 +198,26 @@ app.get('/', (req, res) => {
   res.sendFile(path.join(__dirname, 'index.html'));
 });
 
+app.get('/health', (req, res) => {
+  const mongoStatus = mongoose.connection.readyState;
+  const mongoStates = {
+    0: 'disconnected',
+    1: 'connected',
+    2: 'connecting',
+    3: 'disconnecting'
+  };
+  
+  res.json({
+    status: 'ok',
+    mongodb: {
+      state: mongoStates[mongoStatus] || 'unknown',
+      readyState: mongoStatus,
+      connected: mongoStatus === 1
+    },
+    timestamp: new Date().toISOString()
+  });
+});
+
 app.get('/api/products', (req, res) => {
   res.json(products);
 });
@@ -213,8 +233,17 @@ app.get('/api/products/:id', (req, res) => {
 
 app.get('/api/courts', async (req, res) => {
   try {
-    const courts = await Court.find();
+    if (mongoose.connection.readyState !== 1) {
+      console.error('GET /api/courts - MongoDB not connected. State:', mongoose.connection.readyState);
+      return res.status(503).json({ 
+        error: 'Database not available',
+        message: 'MongoDB connection is not established. Please check server logs.'
+      });
+    }
+
+    const courts = await Court.find().maxTimeMS(10000);
     console.log(`GET /api/courts - Found ${courts.length} courts in database`);
+    
     if (courts.length > 0) {
       console.log('First court from DB:', {
         _id: courts[0]._id,
@@ -223,46 +252,84 @@ app.get('/api/courts', async (req, res) => {
         hasData: !!(courts[0].name && courts[0].address)
       });
     }
-    const formattedCourts = courts.map(court => ({
-      id: court._id.toString(),
-      name: court.name || '',
-      address: court.address || '',
-      hours: court.hours || '',
-      courts: court.courts || '',
-      amenities: court.amenities || '',
-      phone: court.phone || '',
-      parking: court.parking || '',
-      fees: court.fees || '',
-      picture: court.picture || ''
-    }));
+    
+    const formattedCourts = courts.map(court => {
+      try {
+        return {
+          id: court._id ? court._id.toString() : '',
+          name: court.name || '',
+          address: court.address || '',
+          hours: court.hours || '',
+          courts: court.courts || '',
+          amenities: court.amenities || '',
+          phone: court.phone || '',
+          parking: court.parking || '',
+          fees: court.fees || '',
+          picture: court.picture || ''
+        };
+      } catch (mapErr) {
+        console.error('Error formatting court:', mapErr);
+        return null;
+      }
+    }).filter(court => court !== null);
+    
     res.json(formattedCourts);
   } catch (err) {
     console.error('GET /api/courts error:', err);
-    res.status(500).json({ error: 'Server error' });
+    console.error('Error stack:', err.stack);
+    
+    if (err.name === 'MongoServerError' || err.name === 'MongoNetworkError') {
+      return res.status(503).json({ 
+        error: 'Database error',
+        message: 'Unable to connect to database. Please try again later.'
+      });
+    }
+    
+    res.status(500).json({ 
+      error: 'Server error',
+      message: err.message || 'An unexpected error occurred'
+    });
   }
 });
 
 app.get('/api/courts/:id', async (req, res) => {
   try {
-    const court = await Court.findById(req.params.id);
+    if (mongoose.connection.readyState !== 1) {
+      return res.status(503).json({ 
+        error: 'Database not available',
+        message: 'MongoDB connection is not established.'
+      });
+    }
+
+    const court = await Court.findById(req.params.id).maxTimeMS(10000);
     if (court) {
       res.json({
-        id: court._id.toString(),
-        name: court.name,
-        address: court.address,
-        hours: court.hours,
-        courts: court.courts,
-        amenities: court.amenities,
-        phone: court.phone,
-        parking: court.parking,
-        fees: court.fees,
-        picture: court.picture
+        id: court._id ? court._id.toString() : '',
+        name: court.name || '',
+        address: court.address || '',
+        hours: court.hours || '',
+        courts: court.courts || '',
+        amenities: court.amenities || '',
+        phone: court.phone || '',
+        parking: court.parking || '',
+        fees: court.fees || '',
+        picture: court.picture || ''
       });
     } else {
       res.status(404).json({ error: 'Court not found' });
     }
   } catch (err) {
-    res.status(500).json({ error: 'Server error' });
+    console.error('GET /api/courts/:id error:', err);
+    if (err.name === 'MongoServerError' || err.name === 'MongoNetworkError' || err.name === 'CastError') {
+      return res.status(503).json({ 
+        error: 'Database error',
+        message: 'Unable to connect to database or invalid ID format.'
+      });
+    }
+    res.status(500).json({ 
+      error: 'Server error',
+      message: err.message || 'An unexpected error occurred'
+    });
   }
 });
 
@@ -318,6 +385,15 @@ const courtValidationSchema = Joi.object({
 
 app.post('/api/courts', upload.single('picture'), async (req, res) => {
   try {
+    if (mongoose.connection.readyState !== 1) {
+      console.error('POST /api/courts - MongoDB not connected. State:', mongoose.connection.readyState);
+      return res.status(503).json({
+        success: false,
+        error: 'Database not available',
+        message: 'MongoDB connection is not established. Please check server configuration.'
+      });
+    }
+
     console.log('POST /api/courts - Received request');
     console.log('Content-Type:', req.headers['content-type']);
     console.log('Request body type:', typeof req.body);
@@ -444,6 +520,14 @@ app.post('/api/courts', upload.single('picture'), async (req, res) => {
 
 app.put('/api/courts/:id', upload.single('picture'), async (req, res) => {
   try {
+    if (mongoose.connection.readyState !== 1) {
+      return res.status(503).json({
+        success: false,
+        error: 'Database not available',
+        message: 'MongoDB connection is not established.'
+      });
+    }
+
     const existingCourt = await Court.findById(req.params.id);
     
     if (!existingCourt) {
@@ -521,6 +605,14 @@ app.put('/api/courts/:id', upload.single('picture'), async (req, res) => {
 
 app.delete('/api/courts/:id', async (req, res) => {
   try {
+    if (mongoose.connection.readyState !== 1) {
+      return res.status(503).json({
+        success: false,
+        error: 'Database not available',
+        message: 'MongoDB connection is not established.'
+      });
+    }
+
     const court = await Court.findByIdAndDelete(req.params.id);
     
     if (!court) {
